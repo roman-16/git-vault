@@ -1,0 +1,6 @@
+---
+source: tests/output.rs
+expression: "repo.vault(&[\"restore\"]).ok()"
+---
+Restored 1 secret.
+Removed 1 that were not sealed.

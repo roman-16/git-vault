@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/.schema/devbox.schema.json",
+  "env": {
+    "RUST_BACKTRACE": "1"
+  },
+  "packages": {
+    "actionlint":    "latest",
+    "bacon":         "latest",
+    "cargo":         "latest",
+    "cargo-insta":   "latest",
+    "cargo-nextest": "latest",
+    "charm-freeze":  "latest",
+    "clippy":        "latest",
+    "git":           "latest",
+    "goreleaser":    "latest",
+    "hyperfine":     "latest",
+    "jq":            "latest",
+    "just":          "latest",
+    "nixfmt":        "latest",
+    "rust-analyzer": "latest",
+    "rustc":         "latest",
+    "rustfmt":       "latest",
+    "shellcheck":    "latest",
+    "taplo":         "latest"
+  }
+}

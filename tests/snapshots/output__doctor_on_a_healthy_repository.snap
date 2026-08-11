@@ -1,0 +1,19 @@
+---
+source: tests/output.rs
+expression: run.stdout()
+---
+ok      .vault/data holds 2 sealed entries
+ok      .vault/keys is present
+ok      .vault/recipients lists 1 recipient
+ok      this clone is unlocked
+ok      filter.vault.clean is configured
+ok      filter.vault.smudge is configured
+ok      filter.vault.required is true
+ok      filter.vault-plaintext.clean refuses plaintext secrets
+ok      filter.vault-plaintext.required is true
+ok      core.fsmonitor runs git-vault, so git status sees secret edits
+ok      diff.vault.cachetextconv is false
+ok      the pre-commit hook is installed
+ok      .vault/data is tracked normally
+ok      .gitattributes hands .vault/data to the filters
+ok      no sealed path is tracked in plaintext

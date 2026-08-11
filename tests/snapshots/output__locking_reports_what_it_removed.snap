@@ -1,0 +1,5 @@
+---
+source: tests/output.rs
+expression: "repo.vault(&[\"lock\"]).ok()"
+---
+Locked. Removed 2 plaintext files.

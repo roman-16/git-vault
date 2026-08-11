@@ -1,0 +1,25 @@
+mod access;
+mod declare;
+mod doctor;
+mod generate;
+mod history;
+mod hook;
+mod init;
+mod inspect;
+mod lock;
+mod seal;
+mod selfmanage;
+mod unlock;
+
+pub use access::{export_key, keys, revoke, rotate, share};
+pub use declare::{add, remove};
+pub use doctor::doctor;
+pub use generate::{completions, man};
+pub use history::{diff, log};
+pub use hook::hook;
+pub use init::init;
+pub use inspect::{ls, restore, status};
+pub use lock::lock;
+pub use seal::seal;
+pub use selfmanage::{uninstall, update};
+pub use unlock::unlock;

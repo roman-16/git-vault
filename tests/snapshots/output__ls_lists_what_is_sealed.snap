@@ -1,0 +1,8 @@
+---
+source: tests/output.rs
+expression: "repo.vault(&[\"ls\"]).ok()"
+---
+        6  file  secrets/deep/nested.key
+       27  file  secrets/prod.env
+
+2 secrets in .vault/data

@@ -1,0 +1,5 @@
+---
+source: tests/output.rs
+expression: "repo.vault(&[\"add\", \".gitattributes\"]).failed()"
+---
+git-vault: `.gitattributes` cannot be sealed: the repository needs it to open the vault at all

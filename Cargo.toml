@@ -1,0 +1,66 @@
+[package]
+name = "git-vault-cli"
+version = "0.0.0"
+categories = ["command-line-utilities", "cryptography"]
+description = "Transparent encryption for git that collapses everything it protects into one opaque file"
+edition = "2024"
+homepage = "https://github.com/roman-16/git-vault"
+keywords = ["age", "encryption", "git", "secrets", "vault"]
+license = "MIT"
+repository = "https://github.com/roman-16/git-vault"
+
+[[bin]]
+name = "git-vault"
+path = "src/main.rs"
+
+[dependencies]
+age = { version = "0.12", features = ["armor", "ssh"] }
+anyhow = "1"
+blake3 = "1"
+bstr = "1"
+chacha20poly1305 = "0.11"
+clap = { version = "4", features = ["derive", "string"] }
+clap_complete = "4"
+clap_mangen = "0.3"
+diffy = "0.5"
+getrandom = "0.4"
+gix-attributes = "0.34"
+gix-glob = "0.27"
+secrecy = "0.10"
+sha2 = "0.11"
+tempfile = "3"
+ureq = { version = "3", default-features = false, features = [
+  "rustls",
+  "socks-proxy",
+] }
+zeroize = "1"
+
+[dev-dependencies]
+insta = "1"
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+nursery = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+arithmetic_side_effects = "deny"
+as_conversions = "deny"
+exit = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+panic_in_result_fn = "deny"
+string_slice = "deny"
+todo = "deny"
+unchecked_time_subtraction = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+unwrap_used = "deny"

@@ -1,0 +1,5 @@
+---
+source: tests/output.rs
+expression: "clone.vault(&[\"unlock\"]).ok()"
+---
+Unlocked 2 secrets.

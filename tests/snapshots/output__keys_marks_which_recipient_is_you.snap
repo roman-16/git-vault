@@ -1,0 +1,8 @@
+---
+source: tests/output.rs
+expression: "shape.join(\"\\n\")"
+---
+age1… alice@work
+age1… test@example.com (you)
+
+2 recipients in .vault/recipients

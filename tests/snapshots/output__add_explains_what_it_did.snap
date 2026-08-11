@@ -1,0 +1,10 @@
+---
+source: tests/output.rs
+expression: "repo.vault(&[\"add\", \"secrets/\"]).ok()"
+---
+Sealing secrets/**
+  untracked secrets/prod.env, so its plaintext stops being committed
+  its earlier contents are still in this repository's history
+
+Commit the declarations along with the vault:
+  git add .gitattributes .gitignore .vault

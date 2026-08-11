@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="git-vault">
+  <title>git-vault</title>
+  <rect x="20" y="20" width="216" height="216" rx="56" fill="#F03C2E"/>
+  <path d="M128 52a32 32 0 0 1 19 57.7l12.6 46.5a6 6 0 0 1-5.8 7.8h-51.6a6 6 0 0 1-5.8-7.8L109 109.7A32 32 0 0 1 128 52z" fill="#FFFFFF"/>
+  <rect x="88" y="184" width="80" height="20" rx="10" fill="#FFFFFF"/>
+</svg>

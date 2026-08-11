@@ -1,0 +1,20 @@
+---
+source: tests/output.rs
+expression: run.stdout()
+---
+ok      .vault/data holds 3 sealed entries
+ok      .vault/keys is present
+ok      .vault/recipients lists 1 recipient
+ok      this clone is unlocked
+ok      filter.vault.clean is configured
+ok      filter.vault.smudge is configured
+problem filter.vault.required is not true, so a failing filter would let git store the raw bytes
+ok      filter.vault-plaintext.clean refuses plaintext secrets
+ok      filter.vault-plaintext.required is true
+warning core.fsmonitor is unset, so nothing seals a secret edit until the next commit attempt, which then reports that it left the edit out
+problem diff.vault.cachetextconv is not false, so decrypted secrets would be cached under .git and outlive `git vault lock`
+ok      the pre-commit hook is installed
+ok      .vault/data is tracked normally
+ok      .gitattributes hands .vault/data to the filters
+problem `secrets/**` is sealed but not in .gitignore, so git may commit its plaintext
+problem `secrets/leaky.env` is sealed and also tracked in plaintext. Run `git vault add secrets/leaky.env`

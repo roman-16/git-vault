@@ -1,0 +1,5 @@
+---
+source: tests/output.rs
+expression: run.stdout()
+---
+Locked, so the inventory cannot be read. Run `git vault unlock`.

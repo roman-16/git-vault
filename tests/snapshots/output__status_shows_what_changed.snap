@@ -1,0 +1,9 @@
+---
+source: tests/output.rs
+expression: "repo.vault(&[\"status\"]).ok()"
+---
+A secrets/added.env
+D secrets/deep/nested.key
+M secrets/prod.env
+
+Stage them with `git add .vault/data`.

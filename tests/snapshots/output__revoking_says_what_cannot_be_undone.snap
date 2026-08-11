@@ -1,0 +1,12 @@
+---
+source: tests/output.rs
+expression: "output.replace(&shortened, \"age1\")"
+---
+age1… can no longer open the vault.
+The vault key was replaced, so everything is sealed anew.
+
+They can still read every commit made while they had access. If a secret
+was worth protecting from them, change the secret too.
+
+Commit the change:
+  git add .vault/data .vault/keys .vault/recipients

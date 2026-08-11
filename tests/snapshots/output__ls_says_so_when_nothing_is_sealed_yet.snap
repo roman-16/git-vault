@@ -1,0 +1,5 @@
+---
+source: tests/output.rs
+expression: "repo.vault(&[\"ls\"]).ok()"
+---
+Nothing is sealed yet. Declare something with `git vault add`.

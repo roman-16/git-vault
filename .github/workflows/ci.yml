@@ -1,0 +1,77 @@
+name: CI
+
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    name: startup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jetify-com/devbox-install-action@v0.15.0
+      - run: devbox run just bench
+
+  demo:
+    name: demo is a real recording
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jetify-com/devbox-install-action@v0.15.0
+      - run: devbox run just demo
+      - run: git diff --exit-code scripts/terminal-demo/demo.ansi
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jetify-com/devbox-install-action@v0.15.0
+      - run: devbox run just lint
+      - run: git diff --exit-code
+
+  nix:
+    name: nix (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - run: nix build --print-build-logs
+
+  test:
+    name: test (git ${{ matrix.git.version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        git:
+          - { version: "2.30.0", ref: "b4e193a23a1c5d8794794e65cabf1f1135d07fd9" }
+          - { version: "2.34.1", ref: "98bb5b77c8c6666824a4c13d23befa1e07210ef1" }
+          - { version: "2.43.0", ref: "48b75eb6e521f2303cb3cd53a94ec80021b422aa" }
+          - { version: "2.51.0", ref: "f1e8ae508a9a467a9f51d29b8639e96db2b52c30" }
+          - { version: "2.55.0", ref: "a5cbcfe954791221bfffe2307f7d1a1bf61a871e" }
+          - { version: "latest", ref: "nixpkgs-unstable" }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jetify-com/devbox-install-action@v0.15.0
+      - run: devbox run just test-git ${{ matrix.git.ref }}
+
+  test-windows:
+    name: test (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --all-features
