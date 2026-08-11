@@ -4,7 +4,7 @@ mod harness;
 
 use std::fs;
 use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::thread;
 use std::time::Duration;
@@ -191,12 +191,13 @@ fn updating_a_package_managed_install_is_refused_without_reaching_the_network() 
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn a_symlink_does_not_hide_where_the_binary_really_lives() {
     let install = installed_at("nix/store/abc-git-vault-1.0.0/bin/git-vault");
     let link = install.dir.path().join("bin/git-vault");
     fs::create_dir_all(link.parent().unwrap()).unwrap();
-    symlink(&install.binary, &link);
+    std::os::unix::fs::symlink(&install.binary, &link).unwrap();
 
     let output = Command::new(&link)
         .args(["uninstall", "--yes"])
@@ -211,14 +212,4 @@ fn a_symlink_does_not_hide_where_the_binary_really_lives() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(install.exists());
-}
-
-#[cfg(unix)]
-fn symlink(target: &Path, link: &Path) {
-    std::os::unix::fs::symlink(target, link).unwrap();
-}
-
-#[cfg(windows)]
-fn symlink(target: &Path, link: &Path) {
-    fs::copy(target, link).unwrap();
 }

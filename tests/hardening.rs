@@ -127,6 +127,7 @@ fn somebody_elses_fsmonitor_is_left_alone() {
     assert_eq!(repo.read("secrets/prod.env"), b"A=1\n");
 }
 
+#[cfg(unix)]
 #[test]
 fn a_secret_that_is_neither_a_file_nor_a_link_is_named() {
     let repo = with_secrets();
@@ -167,7 +168,7 @@ fn line_ending_translation_cannot_corrupt_the_vault() {
     );
     assert!(
         !repo.read(KEYS).contains(&b'\r'),
-        "`{KEYS}` came back with CRLF, which age cannot read"
+        "git translated the line endings of `{KEYS}`"
     );
     assert!(
         repo.vault(&["ls"]).ok().contains("secrets/prod.env"),

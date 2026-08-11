@@ -167,7 +167,9 @@ pub fn wrap(key: &VaultKey, recipients: &[Recipient]) -> Result<String> {
         .and_then(age::armor::ArmoredWriter::finish)
         .context("cannot finish the key envelope")?;
 
-    String::from_utf8(armoured).context("the key envelope is not text")
+    String::from_utf8(armoured)
+        .map(|envelope| envelope.replace("\r\n", "\n"))
+        .context("the key envelope is not text")
 }
 
 pub fn unwrap(envelope: &[u8], identity: &Identity) -> Result<VaultKey> {
@@ -273,6 +275,17 @@ mod tests {
 
         assert_eq!(recovered.id(), key.id());
         assert!(envelope.starts_with("-----BEGIN AGE ENCRYPTED FILE-----"));
+    }
+
+    #[test]
+    fn an_envelope_has_the_same_bytes_on_every_platform() {
+        let dir = TempDir::new().unwrap();
+        let identity = load_or_create_identity(&dir.path().join("identity")).unwrap();
+        let mine = Recipient::new(&identity.to_public().to_string(), None).unwrap();
+
+        let envelope = wrap(&VaultKey::generate().unwrap(), &[mine]).unwrap();
+
+        assert!(!envelope.contains('\r'), "{envelope}");
     }
 
     #[test]
