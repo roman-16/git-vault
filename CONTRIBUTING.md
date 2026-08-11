@@ -69,9 +69,9 @@ This is for hand testing and for reproducing a bug before writing the test that 
 
 ## The README panel
 
-`just demo` records a real session with `script`, strips the carriage returns, and renders `scripts/terminal-demo/demo.ansi` into `assets/demo-dark.svg` and `assets/demo-light.svg` with [freeze](https://github.com/charmbracelet/freeze). The recording is committed and CI re-records it, failing if a single byte differs, so the panel cannot drift from what the tool actually prints.
+`just demo` records a real session with `script`, strips the carriage returns, and renders `scripts/terminal-demo/demo.ansi` into `assets/demo-dark.svg` and `assets/demo-light.svg` with [freeze](https://github.com/charmbracelet/freeze). The panel is a recording rather than a mockup, so change what a command prints and it has to be recorded again: run `just demo` and commit whatever moves.
 
-The recipe hands freeze its input with stdin redirected from `/dev/null`, because freeze reads stdin whenever stdin is a pipe and ignores the file it was given. Under a CI runner, which pipes stdin, it would otherwise render nothing and fail with `Language Unknown`.
+The recipe hands freeze its input with stdin redirected from `/dev/null`, because freeze reads stdin whenever stdin is a pipe and ignores the file it was given. Anything that pipes stdin would otherwise render nothing and fail with `Language Unknown`.
 
 ## Style
 

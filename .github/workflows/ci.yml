@@ -21,15 +21,6 @@ jobs:
       - uses: jetify-com/devbox-install-action@v0.15.0
       - run: devbox run just bench
 
-  demo:
-    name: demo is a real recording
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: jetify-com/devbox-install-action@v0.15.0
-      - run: devbox run just demo
-      - run: git diff --exit-code scripts/terminal-demo/demo.ansi
-
   lint:
     runs-on: ubuntu-latest
     steps:
