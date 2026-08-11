@@ -40,14 +40,12 @@ demo: build
     script --quiet --command "bash scripts/terminal-demo/record.sh" --return /dev/null \
         | sed --expression 's/\r$//' --expression 's/.*\r//' > "$ansi"
     recorded=$(wc --bytes < "$ansi")
-    printf 'Recorded %s bytes of session.\n' "$recorded"
     if [ "$recorded" -lt 200 ]; then
-        printf 'The recording is too short to be the demo, so `script` produced nothing usable here.\n' >&2
-        cat --show-nonprinting "$ansi" >&2
+        printf 'Recorded %s bytes, too few to be the session.\n' "$recorded" >&2
         exit 1
     fi
     render() {
-        freeze "$ansi" --config "scripts/terminal-demo/$1.json" --output "assets/demo-$1.svg"
+        freeze "$ansi" --config "scripts/terminal-demo/$1.json" --output "assets/demo-$1.svg" < /dev/null
         sed --in-place "s|\(<g font-family=[^>]*\)fill=\"[^\"]*\"|\1fill=\"$2\"|" "assets/demo-$1.svg"
     }
     render dark "#E6E8EC"

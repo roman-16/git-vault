@@ -28,7 +28,7 @@ just update       # move every dependency and tool to the latest version
 just demo         # re-record the README panel
 ```
 
-`just lint` and `just test` both have to pass with nothing to report. `lint` also fails on any comment, on any clippy warning, and runs `actionlint` over the workflows and `goreleaser check` over the release configuration.
+`just lint` and `just test` both have to pass with nothing to report. `lint` also fails on any clippy warning, and runs `actionlint` over the workflows and `goreleaser check` over the release configuration.
 
 ## Tests
 
@@ -44,7 +44,7 @@ just test-git b4e193a23a1c5d8794794e65cabf1f1135d07fd9   # git 2.30.0
 
 ### The one performance number that matters
 
-The `core.fsmonitor` hook runs at the start of every git command that reads the index, so its startup cost is paid constantly. `just bench` measures it and fails above 5000 µs. On a developer machine it is around 700 µs; the budget is loose because CI runners are shared and noisy, and it is there to catch a regression of the kind that comes from spawning another process or re-reading the whole vault, not to police microseconds.
+The `core.fsmonitor` hook runs at the start of every git command that reads the index, so its startup cost is paid constantly. `just bench` measures it and fails above 2000 µs. On a developer machine it is around 700 µs; the budget is loose because CI runners are shared and noisy, and it is there to catch a regression of the kind that comes from spawning another process or re-reading the whole vault, not to police microseconds.
 
 ## Trying it by hand
 
@@ -67,11 +67,17 @@ Each has their own identity in `example/identities`, so `share`, `revoke` and `r
 
 This is for hand testing and for reproducing a bug before writing the test that pins it. It asserts nothing: the suite in `tests/` is what proves behaviour.
 
+## The README panel
+
+`just demo` records a real session with `script`, strips the carriage returns, and renders `scripts/terminal-demo/demo.ansi` into `assets/demo-dark.svg` and `assets/demo-light.svg` with [freeze](https://github.com/charmbracelet/freeze). The recording is committed and CI re-records it, failing if a single byte differs, so the panel cannot drift from what the tool actually prints.
+
+The recipe hands freeze its input with stdin redirected from `/dev/null`, because freeze reads stdin whenever stdin is a pipe and ignores the file it was given. Under a CI runner, which pipes stdin, it would otherwise render nothing and fail with `Language Unknown`.
+
 ## Style
 
 **No comments.** Not few: none. If something needs explaining, rename it, split it, or restructure it until it explains itself; wanting a comment is a signal that the code is wrong. The tree has zero, in Rust and in configuration alike.
 
-Where prose is genuinely part of the interface, it goes somewhere a tool can see: command help in `#[command(about = ...)]`, `just --list` descriptions in `[doc("...")]`, the reasons behind the git configuration in what `git vault doctor` prints, and everything else in `docs/`. `scripts/install.ps1` is the one exception the guard skips, because PowerShell's `Get-Help` is comment-based and has no other mechanism.
+Where prose is genuinely part of the interface, it goes somewhere a tool can see: command help in `#[command(about = ...)]`, `just --list` descriptions in `[doc("...")]`, the reasons behind the git configuration in what `git vault doctor` prints, and everything else in `docs/`. `scripts/install.ps1` is the one exception, because PowerShell's `Get-Help` is comment-based and has no other mechanism.
 
 The lints in `Cargo.toml` are strict on purpose: no `unwrap`, no `expect`, no panics, no indexing, no bare integer arithmetic, no `as` casts, and `clippy::pedantic` plus `clippy::nursery` are denied. Tests get `unwrap` and friends back through `clippy.toml`. Prototyping belongs in a test.
 

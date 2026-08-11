@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result, bail};
 
+use crate::paths::without_verbatim_prefix;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Repo {
     common_dir: PathBuf,
@@ -129,22 +131,26 @@ fn common_dir_of(git_dir: &Path) -> Result<PathBuf> {
 
 fn canonical(path: &Path) -> Result<PathBuf> {
     fs::canonicalize(path)
-        .map(crate::paths::without_verbatim_prefix)
+        .map(without_verbatim_prefix)
         .with_context(|| format!("cannot resolve `{}`", path.display()))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
+    use std::{fs, path::PathBuf};
 
     use tempfile::TempDir;
 
-    use super::Repo;
+    use super::{Repo, without_verbatim_prefix};
+
+    fn resolved(dir: &TempDir) -> PathBuf {
+        without_verbatim_prefix(fs::canonicalize(dir.path()).unwrap())
+    }
 
     #[test]
     fn finds_a_plain_repository_from_a_subdirectory() {
         let dir = TempDir::new().unwrap();
-        let root = fs::canonicalize(dir.path()).unwrap();
+        let root = resolved(&dir);
         fs::create_dir(root.join(".git")).unwrap();
         let deep = root.join("deep/sub");
         fs::create_dir_all(&deep).unwrap();
@@ -159,7 +165,7 @@ mod tests {
     #[test]
     fn a_linked_worktree_shares_the_common_directory() {
         let dir = TempDir::new().unwrap();
-        let base = fs::canonicalize(dir.path()).unwrap();
+        let base = resolved(&dir);
 
         let main_git = base.join("main/.git");
         let worktree_git = main_git.join("worktrees/feature");
@@ -183,7 +189,7 @@ mod tests {
     #[test]
     fn a_relative_gitdir_pointer_resolves_against_the_worktree() {
         let dir = TempDir::new().unwrap();
-        let base = fs::canonicalize(dir.path()).unwrap();
+        let base = resolved(&dir);
 
         let worktree_git = base.join("main/.git/worktrees/feature");
         fs::create_dir_all(&worktree_git).unwrap();
@@ -205,7 +211,7 @@ mod tests {
     #[test]
     fn fails_outside_a_worktree() {
         let dir = TempDir::new().unwrap();
-        let path = fs::canonicalize(dir.path()).unwrap();
+        let path = resolved(&dir);
 
         let error = Repo::discover_from(&path).unwrap_err();
 

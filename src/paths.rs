@@ -41,6 +41,23 @@ pub fn is_never_sealed(rel: &str) -> bool {
 mod tests {
     use super::{is_never_sealed, is_vault_path};
 
+    #[cfg(windows)]
+    #[test]
+    fn a_verbatim_prefix_is_dropped_because_git_refuses_one() {
+        use std::path::PathBuf;
+
+        use super::without_verbatim_prefix;
+
+        assert_eq!(
+            without_verbatim_prefix(PathBuf::from(r"\\?\C:\repo")),
+            PathBuf::from(r"C:\repo")
+        );
+        assert_eq!(
+            without_verbatim_prefix(PathBuf::from(r"C:\repo")),
+            PathBuf::from(r"C:\repo")
+        );
+    }
+
     #[test]
     fn the_vault_directory_is_recognised() {
         assert!(is_vault_path(".vault"));
