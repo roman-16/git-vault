@@ -16,11 +16,22 @@ on:
 permissions:
   contents: write
 
+# A release is queued rather than cancelled: two runs publishing the same tag
+# would race each other through goreleaser and every channel behind it.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# The tag and the version commit are the only things here that outlive a failed
+# run: users fetch the tag, `cargo install` and every package channel resolve it,
+# and it is the version goreleaser derives. So they are pushed last, once
+# everything that can fail has passed, and never before.
 jobs:
-  prepare:
+  resolve:
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.target.outputs.sha }}
+      tag: ${{ steps.target.outputs.tag }}
     steps:
       - name: Validate version
         run: |
@@ -34,47 +45,82 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check tag
+      - name: Resolve the tag and the commit it is cut from
+        id: target
+        env:
+          TAG: v${{ inputs.version }}
         run: |
-          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
             if [ "${{ inputs.skip-tag-check }}" != "true" ]; then
-              echo "::error::Tag v${{ inputs.version }} already exists (pass skip-tag-check=true to resume from it)"
+              echo "::error::Tag $TAG already exists (pass skip-tag-check=true to resume from it)"
               exit 1
             fi
-            echo "Tag v${{ inputs.version }} exists; resuming the release from it."
-          fi
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Bump the version, tag it
-        id: tag
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          git config user.name "Roman"
-          git config user.email "roman@lerchster.dev"
-
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Reusing existing tag v$VERSION."
+            # Resuming: the release is the tag's own commit, and the checks below
+            # run against that rather than against whatever main has become.
+            sha=$(git rev-parse "$TAG^{commit}")
+            echo "Tag $TAG exists; resuming the release from $sha."
           else
-            sed --in-place "0,/^version = /s/^version = .*/version = \"$VERSION\"/" Cargo.toml
-            cargo update --workspace --quiet
-            git add Cargo.toml Cargo.lock
-            git diff --cached --quiet || git commit --message "chore: release v$VERSION"
-            git tag --annotate "v$VERSION" --message "Release v$VERSION"
-            git push origin HEAD "v$VERSION"
+            sha=$GITHUB_SHA
           fi
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-  release:
-    needs: prepare
+  verify:
+    needs: resolve
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  tag:
+    needs: [resolve, verify]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ needs.prepare.outputs.tag }}
+          ref: ${{ needs.resolve.outputs.sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Bump the version and tag it
+        env:
+          REF: ${{ github.ref }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Reusing existing tag $TAG."
+            exit 0
+          fi
+
+          git config user.name "Roman"
+          git config user.email "roman@lerchster.dev"
+
+          sed --in-place "0,/^version = /s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+          cargo update --workspace --quiet
+
+          # The checks ran against $SHA and the tag names its child, which differs
+          # only by a version string no test reads. The one way that difference
+          # can bite is a lock that no longer matches the manifest, which
+          # `cargo publish --locked` and `nix build` would both hit.
+          cargo metadata --locked --format-version 1 >/dev/null
+
+          git add Cargo.toml Cargo.lock
+          git diff --cached --quiet || git commit --message "chore: release $TAG"
+          git tag --annotate "$TAG" --message "Release $TAG"
+          git push origin "HEAD:$REF" "$TAG"
+
+  release:
+    needs: [resolve, tag]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.resolve.outputs.tag }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -101,7 +147,7 @@ jobs:
       - name: Verify the release has every asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.prepare.outputs.tag }}
+          TAG: ${{ needs.resolve.outputs.tag }}
         run: |
           assets=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
           echo "Assets on $TAG:"; echo "$assets"
@@ -121,7 +167,7 @@ jobs:
           fi
 
   apt-repo:
-    needs: [prepare, release]
+    needs: [resolve, release]
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -140,7 +186,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir --parents debs
-          gh release download "${{ needs.prepare.outputs.tag }}" \
+          gh release download "${{ needs.resolve.outputs.tag }}" \
             --repo "${{ github.repository }}" --pattern '*.deb' --dir debs
           ls -la debs/
 
@@ -181,14 +227,14 @@ jobs:
         uses: actions/deploy-pages@v5
 
   crates-io:
-    needs: [prepare, release]
+    needs: [resolve, release]
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.prepare.outputs.tag }}
+          ref: ${{ needs.resolve.outputs.tag }}
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -198,7 +244,7 @@ jobs:
         run: cargo publish --locked
 
   report:
-    needs: [prepare, release, apt-repo, apt-deploy, crates-io]
+    needs: [resolve, release, apt-repo, apt-deploy, crates-io]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -208,7 +254,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_RESULT: ${{ needs.release.result }}
-          TAG: ${{ needs.prepare.outputs.tag }}
+          TAG: ${{ needs.resolve.outputs.tag }}
         run: |
           v="${TAG#v}"
           assets=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length' 2>/dev/null || echo 0)

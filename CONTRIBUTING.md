@@ -109,9 +109,13 @@ Escape hatches are `#[expect(lint, reason = "…")]`, never `#[allow]`, so a hat
 
 ## Releases
 
-Releases are started by hand: run the **Release** workflow with a version like `1.0.0`. It bumps `Cargo.toml`, commits, tags, and pushes, then [GoReleaser](https://goreleaser.com) builds every target and publishes to the GitHub release, apk/deb/rpm, the APT repository, AUR, Homebrew and winget, with crates.io alongside. `.goreleaser.yaml` is the configuration and `just lint` validates it with `goreleaser check`.
+Releases are started by hand: run the **Release** workflow with a version like `1.0.0`. It runs the same checks a pull request faces against the commit being released, and only then bumps `Cargo.toml`, commits, tags and pushes. The tag is pushed last on purpose: users fetch it, `cargo install` and every package channel resolve it, and it is the version GoReleaser derives, so nothing that outlives a failed run happens until everything that can fail has passed. [GoReleaser](https://goreleaser.com) then builds every target and publishes to the GitHub release, apk/deb/rpm, the APT repository, AUR, Homebrew and winget, with crates.io alongside. `.goreleaser.yaml` is the configuration and `just lint` validates it with `goreleaser check`.
 
-Every channel after the GitHub release is `continue-on-error`, and the final job polls each registry and writes a status table, so one dead registry cannot fail a release and nothing fails silently. Re-running the workflow with the same version and `skip-tag-check` resumes from the existing tag.
+Re-running the workflow with the same version and `skip-tag-check` resumes from the existing tag, and re-checks that tag's own commit rather than whatever `main` has become since.
+
+`just snapshot` runs the same GoReleaser pipeline locally without publishing, so a packaging mistake surfaces before the tag rather than after it.
+
+Every channel after the GitHub release is `continue-on-error`, and the final job polls each registry and writes a status table, so one dead registry cannot fail a release and nothing fails silently.
 
 ## Security
 
