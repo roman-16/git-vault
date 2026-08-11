@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       skip-tag-check:
-        description: "Resume a release from an existing tag"
+        description: "Skip tag check"
         required: false
         default: false
         type: boolean
