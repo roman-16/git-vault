@@ -68,7 +68,9 @@ impl Source {
 pub fn running_executable() -> Result<PathBuf> {
     let executable = std::env::current_exe().context("cannot tell where this binary lives")?;
 
-    Ok(std::fs::canonicalize(&executable).unwrap_or(executable))
+    Ok(std::fs::canonicalize(&executable)
+        .map(crate::paths::without_verbatim_prefix)
+        .unwrap_or(executable))
 }
 
 #[cfg(test)]

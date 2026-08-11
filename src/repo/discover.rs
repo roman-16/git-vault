@@ -128,7 +128,9 @@ fn common_dir_of(git_dir: &Path) -> Result<PathBuf> {
 }
 
 fn canonical(path: &Path) -> Result<PathBuf> {
-    fs::canonicalize(path).with_context(|| format!("cannot resolve `{}`", path.display()))
+    fs::canonicalize(path)
+        .map(crate::paths::without_verbatim_prefix)
+        .with_context(|| format!("cannot resolve `{}`", path.display()))
 }
 
 #[cfg(test)]

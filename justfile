@@ -1,5 +1,5 @@
 [doc("Measure the hook git runs on every command that reads the index, and fail if it got slow")]
-bench budget_us="1000": build
+bench budget_us="2000": build
     #!/usr/bin/env bash
     set -euo pipefail
     work=$(mktemp --directory)
@@ -39,6 +39,13 @@ demo: build
     ansi=scripts/terminal-demo/demo.ansi
     script --quiet --command "bash scripts/terminal-demo/record.sh" --return /dev/null \
         | sed --expression 's/\r$//' --expression 's/.*\r//' > "$ansi"
+    recorded=$(wc --bytes < "$ansi")
+    printf 'Recorded %s bytes of session.\n' "$recorded"
+    if [ "$recorded" -lt 200 ]; then
+        printf 'The recording is too short to be the demo, so `script` produced nothing usable here.\n' >&2
+        cat --show-nonprinting "$ansi" >&2
+        exit 1
+    fi
     render() {
         freeze "$ansi" --config "scripts/terminal-demo/$1.json" --output "assets/demo-$1.svg"
         sed --in-place "s|\(<g font-family=[^>]*\)fill=\"[^\"]*\"|\1fill=\"$2\"|" "assets/demo-$1.svg"

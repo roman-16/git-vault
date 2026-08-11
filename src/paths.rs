@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 pub const ATTRIBUTES: &str = ".gitattributes";
 
 pub const DATA: &str = ".vault/data";
@@ -9,6 +11,19 @@ pub const KEYS: &str = ".vault/keys";
 pub const RECIPIENTS: &str = ".vault/recipients";
 
 pub const VAULT_DIR: &str = ".vault";
+
+#[cfg(windows)]
+pub fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
+    match path.to_str().and_then(|text| text.strip_prefix(r"\\?\")) {
+        Some(plain) => PathBuf::from(plain),
+        None => path,
+    }
+}
+
+#[cfg(not(windows))]
+pub const fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
+    path
+}
 
 pub fn is_vault_path(rel: &str) -> bool {
     rel == VAULT_DIR || rel.starts_with(".vault/")

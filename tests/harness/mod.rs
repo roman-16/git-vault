@@ -77,7 +77,7 @@ impl Repo {
             .prefix("git-vault-test-")
             .tempdir()
             .unwrap();
-        let base = fs::canonicalize(dir.path()).unwrap();
+        let base = usable_by_git(&fs::canonicalize(dir.path()).unwrap());
 
         let bin_dir = base.join("bin");
         fs::create_dir(&bin_dir).unwrap();
@@ -320,6 +320,12 @@ impl Repo {
     pub fn keep(&self) -> &Path {
         self.dir.path()
     }
+}
+
+fn usable_by_git(path: &Path) -> PathBuf {
+    path.to_str()
+        .and_then(|text| text.strip_prefix(r"\\?\"))
+        .map_or_else(|| path.to_path_buf(), PathBuf::from)
 }
 
 #[cfg(unix)]
