@@ -60,7 +60,7 @@ jobs:
             sed --in-place "0,/^version = /s/^version = .*/version = \"$VERSION\"/" Cargo.toml
             cargo update --workspace --quiet
             git add Cargo.toml Cargo.lock
-            git commit --message "chore: release v$VERSION"
+            git diff --cached --quiet || git commit --message "chore: release v$VERSION"
             git tag --annotate "v$VERSION" --message "Release v$VERSION"
             git push origin HEAD "v$VERSION"
           fi
