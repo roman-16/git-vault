@@ -1,4 +1,5 @@
 .devbox/
+.zig-cache/
 dist/
 example/
 target/
