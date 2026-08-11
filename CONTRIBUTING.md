@@ -73,18 +73,6 @@ This is for hand testing and for reproducing a bug before writing the test that 
 
 The recipe hands freeze its input with stdin redirected from `/dev/null`, because freeze reads stdin whenever stdin is a pipe and ignores the file it was given. Anything that pipes stdin would otherwise render nothing and fail with `Language Unknown`.
 
-## Style
-
-**No comments.** Not few: none. If something needs explaining, rename it, split it, or restructure it until it explains itself; wanting a comment is a signal that the code is wrong. The tree has zero, in Rust and in configuration alike.
-
-Where prose is genuinely part of the interface, it goes somewhere a tool can see: command help in `#[command(about = ...)]`, `just --list` descriptions in `[doc("...")]`, the reasons behind the git configuration in what `git vault doctor` prints, and everything else in `docs/`. `scripts/install.ps1` is the one exception, because PowerShell's `Get-Help` is comment-based and has no other mechanism.
-
-The lints in `Cargo.toml` are strict on purpose: no `unwrap`, no `expect`, no panics, no indexing, no bare integer arithmetic, no `as` casts, and `clippy::pedantic` plus `clippy::nursery` are denied. Tests get `unwrap` and friends back through `clippy.toml`. Prototyping belongs in a test.
-
-Those lints shape the design rather than just the style. All offset arithmetic lives in one checked reader, so a hostile `.vault/data` produces an error instead of a panic; exit codes are a typed enum because `std::process::exit` is denied; and error paths are values rather than assertions.
-
-Escape hatches are `#[expect(lint, reason = "…")]`, never `#[allow]`, so a hatch that stops being needed fails the build.
-
 ## Pull requests
 
 - Keep the change focused, and match the surrounding style.

@@ -252,6 +252,9 @@ jobs:
     steps:
       - name: Channel status report
         env:
+          APT_DEPLOY_RESULT: ${{ needs.apt-deploy.result }}
+          APT_REPO_RESULT: ${{ needs.apt-repo.result }}
+          CRATES_RESULT: ${{ needs.crates-io.result }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_RESULT: ${{ needs.release.result }}
           TAG: ${{ needs.resolve.outputs.tag }}
@@ -259,11 +262,24 @@ jobs:
           v="${TAG#v}"
           assets=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length' 2>/dev/null || echo 0)
 
-          probe_apt() { curl -fsS https://roman-16.github.io/git-vault/dists/stable/main/binary-amd64/Packages 2>/dev/null | awk '$1=="Version:"{print $2}' | sort -V | tail -1; }
-          probe_crates() { curl -fsS https://crates.io/api/v1/crates/git-vault-cli 2>/dev/null | jq -r '.crate.max_version // ""'; }
+          # crates.io answers 403 to curl's default User-Agent, so every probe
+          # names itself the way crates.io's data-access policy asks.
+          agent="git-vault release report (+https://github.com/roman-16/git-vault)"
 
+          probe_apt() { curl -fsS --user-agent "$agent" https://roman-16.github.io/git-vault/dists/stable/main/binary-amd64/Packages 2>/dev/null | awk '$1=="Version:"{print $2}' | sort -V | tail -1; }
+          probe_aur() { curl -fsS --user-agent "$agent" 'https://aur.archlinux.org/rpc/v5/info?arg[]=git-vault-bin' 2>/dev/null | jq -r '.results[0].Version // ""' | sed 's/-[0-9]*$//'; }
+          probe_crates() { curl -fsS --user-agent "$agent" https://crates.io/api/v1/crates/git-vault-cli 2>/dev/null | jq -r '.crate.max_version // ""'; }
+
+          # Poll a probe until it reports the target version or the deadline
+          # passes: every one of these is read through a cache, and a read that
+          # lags a just-succeeded publish must not be reported as a failed one.
+          # A report that cries wolf is a report nobody reads.
+          #
+          # AUR gets longer because it lags the most: its database records a
+          # push about a minute later, and the RPC answers from a cache for
+          # minutes after that.
           poll() {
-            local fn="$1" want="$2" got deadline=$(( SECONDS + 60 ))
+            local fn="$1" want="$2" got deadline=$(( SECONDS + ${3:-60} ))
             while :; do
               got="$($fn)"
               if [ "$got" = "$want" ] || [ "$SECONDS" -ge "$deadline" ]; then printf '%s' "$got"; return; fi
@@ -272,8 +288,8 @@ jobs:
           }
 
           apt="$(poll probe_apt "$v")"
+          aur="$(poll probe_aur "$v" 300)"
           crates="$(poll probe_crates "$v")"
-          aur=$(curl -fsS 'https://aur.archlinux.org/rpc/v5/info?arg[]=git-vault-bin' 2>/dev/null | jq -r '.results[0].Version // ""' | sed 's/-[0-9]*$//')
           brew=$(gh api repos/roman-16/homebrew-tap/contents/Casks/git-vault.rb --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | sed -n 's/.*version "\([^"]*\)".*/\1/p' | head -1)
 
           row() { printf '| %s | %s | %s |\n' "$1" "$2" "$3" >> "$GITHUB_STEP_SUMMARY"; }
@@ -286,24 +302,39 @@ jobs:
 
           if [ "$RELEASE_RESULT" = "success" ] && [ "$assets" -gt 0 ]; then
             row "GitHub release" "✅" "$TAG ($assets assets)"
+          elif [ "$RELEASE_RESULT" = "success" ]; then
+            row "GitHub release" "❌" "no assets on $TAG"
+            echo "::error::GitHub release $TAG carries no assets"
           else
             row "GitHub release" "❌" "release job: $RELEASE_RESULT"
-            echo "::warning::GitHub release did not complete ($RELEASE_RESULT)"
+            echo "::error::GitHub release did not complete ($RELEASE_RESULT)"
           fi
 
+          # A version that is live is live, whatever the job that published it
+          # went on to report: a re-release fails `cargo publish` with "already
+          # exists", and that is a channel carrying the version, not a failure.
           check() {
-            if [ "$3" = "$2" ]; then row "$1" "✅" "$3"
-            elif [ -z "$3" ]; then row "$1" "⚠️" "unreachable"; echo "::warning::$1 could not be checked"
-            else row "$1" "⚠️" "still $3 (expected $2)"; echo "::warning::$1 is still $3, expected $2 - re-run to backfill"
+            local name="$1" want="$2" got="$3" job="${4:-success}"
+            if [ "$got" = "$want" ]; then row "$name" "✅" "$got"
+            elif [ "$job" != "success" ]; then row "$name" "❌" "job: $job"; echo "::error::$name did not publish ($job)"
+            elif [ -z "$got" ]; then row "$name" "⚠️" "unreachable"; echo "::warning::$name could not be checked"
+            else row "$name" "⚠️" "still $got (expected $want)"; echo "::warning::$name is still $got, expected $want - re-run to backfill"
             fi
           }
-          check "apt" "$v" "${apt:-}"
-          check "crates.io" "$v" "$crates"
+
+          if [ "$APT_REPO_RESULT" != success ]; then apt_job="$APT_REPO_RESULT"; else apt_job="$APT_DEPLOY_RESULT"; fi
+
+          check "apt" "$v" "${apt:-}" "$apt_job"
           check "AUR" "$v" "$aur"
+          check "crates.io" "$v" "$crates" "$CRATES_RESULT"
           check "Homebrew" "$v" "$brew"
 
-          if gh api "repos/roman-16/winget-pkgs/branches/git-vault-$v" >/dev/null 2>&1; then
-            row "winget" "✅" "PR branch git-vault-$v pushed"
+          # Microsoft deletes the branch when it merges the pull request, so the
+          # branch alone reads a completed winget release as a missing one.
+          if gh api "repos/microsoft/winget-pkgs/contents/manifests/r/Roman-16/GitVault/$v" >/dev/null 2>&1; then
+            row "winget" "✅" "merged into microsoft/winget-pkgs"
+          elif gh api "repos/roman-16/winget-pkgs/branches/git-vault-$v" >/dev/null 2>&1; then
+            row "winget" "✅" "PR open from git-vault-$v"
           else
-            row "winget" "⚠️" "no branch git-vault-$v"; echo "::warning::winget: branch git-vault-$v not found (PR may be merged or closed)"
+            row "winget" "⚠️" "nothing found for $v"; echo "::warning::winget: no manifest and no branch for $v"
           fi
