@@ -1,6 +1,6 @@
 [package]
 name = "git-vault-cli"
-version = "0.0.0"
+version = "1.0.0"
 categories = ["command-line-utilities", "cryptography"]
 description = "Transparent encryption for git that collapses everything it protects into one opaque file"
 edition = "2024"
