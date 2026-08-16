@@ -1,5 +1,28 @@
 # Limitations
 
+## Your build cannot read a sealed secret
+
+Sealed secrets are untracked and ignored files. That is not an implementation detail, it is the whole mechanism: a file git does not track has no name for anyone to see. The cost is that **anything reading your repository through git sees nothing at all**, not even an unreadable placeholder:
+
+| What you might be doing | What it sees |
+| --- | --- |
+| A Nix flake (`builtins.readFile ./secrets.json`) | the tracked tree only, so the file does not exist |
+| `cargo package`, `npm pack` | the same, so the file is missing from the artifact |
+| A Docker build context fed by `git archive` | the same |
+| Bazel, or a CI job with a sparse or tracked-file-only checkout | the same |
+
+This is the one axis where git-crypt is better, and it is worth knowing before you migrate rather than after. git-crypt tracks per-file ciphertext, so those tools are handed a file. Your build fails on its contents, but the file is there and the path resolves. git-vault hands them nothing.
+
+The escape hatch people reach for first does not work either. Nix's `path:` bypasses git entirely and copies **everything**, including `.git` and every ignored build artifact, which on a real repository means hundreds of megabytes hashed into the store on every evaluation.
+
+The shape that does work:
+
+> Seal only what your build does not read. Unseal the rest at deploy time.
+
+`git vault unseal` is the deploy-time half, and it needs no repository and no git. → [Deploying secrets](deploying.md)
+
+If a build step genuinely has to read a secret, no transparent-encryption tool can help, because the build needs plaintext and the repository must not have it. That code belongs in a private repository instead.
+
 ## By design
 
 **All secret changes commit together.** They live in one file, so there is no `git add secrets/one.env`. `git commit -a` takes every secret change at once, and staging one secret while leaving another unstaged is not possible.

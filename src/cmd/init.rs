@@ -8,6 +8,7 @@ use crate::repo::hooks::{self, Installed};
 use crate::repo::recipients;
 use crate::repo::session::Empty;
 use crate::repo::{Repo, wiring};
+use crate::vault::identity::Identity;
 use crate::vault::keys::{self, VaultKey};
 use crate::vault::recipient::Recipient;
 
@@ -22,15 +23,19 @@ pub fn init() -> Result<Code> {
     }
 
     let identity_path = keys::identity_path()?;
-    let identity = keys::load_or_create_identity(&identity_path)?;
+    let identity = Identity::load_or_create(&identity_path)?;
+    let public = identity.public().with_context(|| {
+        format!(
+            "`{}` has no public key beside it, so this vault cannot be wrapped for you. Write it with `ssh-keygen -y -f {}`",
+            identity_path.display(),
+            identity_path.display()
+        )
+    })?;
     let key = VaultKey::generate()?;
 
     fs::create_dir_all(worktree.join(paths::VAULT_DIR))
         .with_context(|| format!("cannot create `{}`", paths::VAULT_DIR))?;
-    let mine = [Recipient::new(
-        &identity.to_public().to_string(),
-        label().as_deref(),
-    )?];
+    let mine = [Recipient::new(&public, label().as_deref())?];
     recipients::write(&worktree, &mine)?;
     fs::write(repo.keys_path(), keys::wrap(&key, &mine)?)
         .with_context(|| format!("cannot write `{}`", paths::KEYS))?;
@@ -44,7 +49,7 @@ pub fn init() -> Result<Code> {
 
     println!("Vault created.");
     println!("  identity   {}", identity_path.display());
-    println!("  recipient  {}", identity.to_public());
+    println!("  recipient  {public}");
     if let wiring::Watcher::Theirs(existing) = &watcher {
         println!();
         println!("`core.fsmonitor` is already `{existing}`, so it was left alone. Without it");

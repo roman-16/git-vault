@@ -58,6 +58,42 @@ On a small repository nobody notices. On a large one, prefer `secrets/**` or `co
 
 `git vault add secrets/` writes the anchored form for you.
 
+## Sealing a source tree without its build output
+
+A pattern that names a directory seals **everything** inside it, at any depth, except `.git`. That includes `node_modules/`, `.venv/`, `__pycache__/`, `dist/` and every database file your tools have left lying about.
+
+Nested `.gitignore` files are deliberately not consulted. Git itself never reads them here either, because it never descends into an ignored directory, and honouring them would be actively dangerous: `.env` is both the most commonly ignored filename and the most common secret, so a nested rule would silently leave your secret out of the vault.
+
+So exclude build output explicitly, with a `-vault` line after the one that seals the tree:
+
+```gitattributes
+src/service/**             vault filter=vault-plaintext
+src/service/.venv/**       -vault
+src/service/data/**        -vault
+src/service/__pycache__/** -vault
+```
+
+The last matching line wins, as it does in git.
+
+`git vault add` tells you what it just sealed, and names the largest entries when the total is big enough to be a problem, so you can act while it is still one command to undo:
+
+```console
+$ git vault add src/service/
+Sealing src/service/**
+
+3 secrets, 18.1 MiB in total.
+
+That is a lot to seal again on every git command. The largest are:
+   13.3 MiB  src/service/data/market.duckdb
+    4.7 MiB  src/service/.venv/lib/blob
+       12 B  src/service/src/strategy.py
+
+Build output belongs outside the vault. Exclude it in .gitattributes:
+  src/service/data/** -vault
+```
+
+This matters more than the disk space suggests: the whole vault is held in memory and sealed again on every git command. → [Limitations](limitations.md)
+
 ## Removing something
 
 ```console

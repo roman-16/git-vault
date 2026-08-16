@@ -6,6 +6,7 @@ use anyhow::{Context as _, Result, bail};
 use crate::exit::Code;
 use crate::paths;
 use crate::repo::{Repo, recipients};
+use crate::vault::identity::Identity;
 use crate::vault::keys::{self, VaultKey};
 use crate::vault::recipient::Recipient;
 
@@ -157,9 +158,8 @@ fn rotate_to_new_key(repo: &Repo, listed: &[Recipient]) -> Result<()> {
 
 fn my_public_key() -> Option<String> {
     let path = keys::identity_path().ok()?;
-    let identity = keys::load_identity(&path).ok()?;
 
-    Some(identity.to_public().to_string())
+    Identity::load(&path).ok()?.public()
 }
 
 fn read_key(argument: &str) -> Result<String> {

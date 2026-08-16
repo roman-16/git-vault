@@ -18,14 +18,15 @@
 | `no pre-commit hook` | Nothing seals if `core.fsmonitor` also fails | `git vault unlock` |
 | `another pre-commit hook is installed` (warning) | Yours was left alone | Add the line it prints to your hook |
 | `.vault/data carries the index flag …` | `assume-unchanged` or `skip-worktree` is set, so git stops noticing it | Run the `git update-index` command it prints |
-| `.vault/data is not tracked by git` | It was never added | `git add .vault && git commit` |
+| `.vault/data is not committed yet` (warning) | A new vault, before its first commit | `git add .vault && git commit` |
+| `.vault/data is in the last commit but no longer in the index` | Something removed it from the index, so a commit now would delete it | `git checkout -- .vault/data` |
 | `.gitattributes does not hand .vault/data to the filters` | The declaration line is missing | `git vault unlock` rewrites it |
 | `… hands .vault/data to the clean and smudge filters but not to diff and merge` | The line is incomplete | Restore `filter=vault diff=vault merge=vault -text` |
 | `… marks .vault/data as binary` | `binary` also switches off diff and merge | Use `-text` instead |
 | `is sealed but not in .gitignore` | Git may commit the plaintext | `git vault add <path>` |
 | `is sealed and also tracked in plaintext` | **A leak.** Git has the plaintext | `git vault add <path>`, then rewrite history if it was pushed |
 | `a pattern has no leading directory` (warning) | Every git command walks the whole worktree | Anchor it, for example `secrets/**` instead of `*.key` |
-| `.vault/data is … KiB` (warning) | It is sealed again on every git command | Keep large files out of the vault |
+| `.vault/data is … MiB` (warning) | It is sealed again on every git command | Keep large files out of the vault. [Sealing a source tree without its build output](declaring-secrets.md#sealing-a-source-tree-without-its-build-output) |
 | `nothing is declared secret yet` (warning) | You have a vault but no secrets | `git vault add <path>` |
 
 ## Every refusal
@@ -64,6 +65,9 @@ You are on an older build than the documentation.
 
 **`git status` shows ` M .vault/data` and I changed nothing.**
 Something did change a secret: check `git vault status`. If it lists nothing, the vault was sealed with a different key, which `doctor` will tell you.
+
+**`git vault ls` and `git vault doctor` report different numbers.**
+They answer different questions. `ls` lists what is secret *now*, by reading your files and your patterns; `doctor` reads `.vault/data`, which is only rewritten when something seals. Right after editing `.gitattributes` they will disagree, and `ls` says so and names the count each one has. The next git command re-seals and they agree again.
 
 **`fatal: secrets/prod.env: clean filter 'vault-plaintext' failed`**
 Git was about to store the plaintext of a declared secret. That is the guard working: the path is in `.gitattributes` as sealed, so its contents belong in `.vault/data`. Put it back in `.gitignore`, or run `git vault remove <path>` if you meant to publish it.

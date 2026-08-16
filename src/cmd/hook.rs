@@ -17,7 +17,7 @@ pub fn hook(name: &str) -> Result<Code> {
 fn pre_commit() -> Result<Code> {
     let repo = Repo::discover()?;
 
-    refuse_staged_plaintext(&repo)?;
+    refuse_tracked_plaintext(&repo)?;
 
     if !repo.is_unlocked() || repo.operation_in_progress() {
         return Ok(Code::Ok);
@@ -35,21 +35,17 @@ fn pre_commit() -> Result<Code> {
     Ok(Code::Ok)
 }
 
-fn refuse_staged_plaintext(repo: &Repo) -> Result<()> {
-    let patterns = repo.patterns()?;
-    let staged: Vec<String> = index::staged_for_commit(repo.worktree())?
-        .into_iter()
-        .filter(|path| patterns.is_secret(path))
-        .collect();
+fn refuse_tracked_plaintext(repo: &Repo) -> Result<()> {
+    let tracked = repo.tracked_secrets()?;
 
-    if staged.is_empty() {
+    if tracked.is_empty() {
         return Ok(());
     }
 
     bail!(
         "this commit would publish the plaintext of {names}, which {} says is secret. Run `git vault add {names}` to take it out of the index, or `git vault remove {names}` to stop sealing it",
         paths::ATTRIBUTES,
-        names = staged.join(" ")
+        names = tracked.join(" ")
     )
 }
 

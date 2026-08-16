@@ -96,6 +96,7 @@ git vault export-key ci.key                    # for CI
 ```bash
 git vault unlock                  # secrets become ordinary files here
 git vault lock                    # remove the plaintext and the local key
+git vault unseal --into <dir>     # open a vault with no repository and no git
 git vault doctor                  # check this clone, non-zero exit on problems
 ```
 
@@ -140,6 +141,7 @@ That key is wrapped for each person with [age](https://age-encryption.org), usin
 | [Getting started](docs/getting-started.md) | First vault, second machine, day to day |
 | [Declaring secrets](docs/declaring-secrets.md) | Patterns, the two declaration files, why anchored patterns are faster |
 | [Keys and access](docs/keys-and-access.md) | Recipients, sharing, revoking, rotating, CI |
+| [Deploying secrets](docs/deploying.md) | Opening a vault with no repository: CI, servers, NixOS |
 | [Git integration](docs/git-integration.md) | What every git command does, and which safety nets are git's own |
 | [How it works](docs/how-it-works.md) | The three moments git gives us, and why it is built this way |
 | [The `.vault` format](docs/format.md) | The sealed layout, byte for byte |

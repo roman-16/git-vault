@@ -1,4 +1,5 @@
 pub mod format;
+pub mod identity;
 pub mod keys;
 mod reader;
 pub mod recipient;

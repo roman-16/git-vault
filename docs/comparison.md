@@ -38,8 +38,13 @@ The closest comparison, and the one worth being precise about.
 | Key sharing | GPG, or a symmetric key file | age, native keys or existing SSH keys |
 | Clone without the key | works, files are opaque | works, the vault is opaque |
 | Extra machinery per clone | `.git/config` | `.git/config` and a pre-commit hook |
+| **Visible to anything reading the repo through git** | **yes, as ciphertext** | **no** |
 
-git-crypt is the better fit when you want each secret staged and reviewed on its own, and you do not mind the names being public. git-vault is the better fit when the names, the paths, the count and the structure are themselves worth hiding.
+That last row is the one place git-crypt wins outright, and it deserves to be stated plainly rather than buried. Nix, `cargo package`, `npm pack`, `git archive` and sparse CI checkouts all read the tracked tree. git-crypt tracks per-file ciphertext, so those tools get a file: the build fails on its contents, but the path resolves. git-vault's secrets are untracked by construction, so they are simply not there.
+
+If a build of yours reads a secret from the worktree, that is the deciding fact, and you should know it before migrating. → [Limitations](limitations.md)
+
+Otherwise: git-crypt is the better fit when you want each secret staged and reviewed on its own, and you do not mind the names being public. git-vault is the better fit when the names, the paths, the count and the structure are themselves worth hiding.
 
 ## Against sops
 

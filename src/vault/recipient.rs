@@ -9,10 +9,34 @@ pub struct Recipient {
     label: Option<String>,
 }
 
+fn normalise(key: &str) -> String {
+    let key = key.trim();
+
+    if !key.starts_with("ssh-") {
+        return key.to_owned();
+    }
+
+    let mut fields = key.split_whitespace();
+    match (fields.next(), fields.next()) {
+        (Some(kind), Some(body)) => format!("{kind} {body}"),
+        _incomplete => key.to_owned(),
+    }
+}
+
+fn tail(text: &str, count: usize) -> String {
+    text.chars()
+        .rev()
+        .take(count)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect()
+}
+
 impl Recipient {
     pub fn new(key: &str, label: Option<&str>) -> Result<Self> {
         let recipient = Self {
-            key: key.trim().to_owned(),
+            key: normalise(key),
             label: label
                 .map(str::trim)
                 .filter(|label| !label.is_empty())
@@ -53,9 +77,10 @@ impl Recipient {
     }
 
     pub fn short(&self) -> String {
-        let body = self.key.rsplit(' ').next().unwrap_or(&self.key);
-        let head: String = body.chars().take(16).collect();
-        format!("{head}…")
+        match self.key.split_once(' ') {
+            Some((kind, body)) => format!("{kind} …{}", tail(body, 10)),
+            None => format!("{}…", self.key.chars().take(16).collect::<String>()),
+        }
     }
 
     pub fn to_age(&self) -> Result<Box<dyn age::Recipient + Send>> {
@@ -108,6 +133,40 @@ mod tests {
 
         assert_eq!(recipient.label(), Some("alice@laptop"));
         assert!(recipient.to_age().is_ok());
+    }
+
+    #[test]
+    fn an_ssh_key_keeps_the_label_you_gave_rather_than_its_own_comment() {
+        let with_comment = format!("{SSH} roman@roman-nixos");
+
+        let recipient = Recipient::new(&with_comment, Some("homelab")).unwrap();
+
+        assert_eq!(recipient.key(), SSH, "the comment is not part of the key");
+        assert_eq!(recipient.label(), Some("homelab"));
+
+        let reread = Recipient::from_line(&recipient.to_string())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            reread.label(),
+            Some("homelab"),
+            "a recipient must survive a round trip through .vault/recipients"
+        );
+        assert_eq!(reread.key(), SSH);
+    }
+
+    #[test]
+    fn an_ssh_recipient_renders_as_something_you_can_tell_apart() {
+        let one = Recipient::new(SSH, None).unwrap().short();
+        let two = Recipient::new(
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH2K3nBFtPqLQvJ8Rb0lLPCwPYVAJZLhdVLbLBEHVQdE",
+            None,
+        )
+        .unwrap()
+        .short();
+
+        assert!(one.starts_with("ssh-ed25519 "), "{one}");
+        assert_ne!(one, two, "every ed25519 key starts with the same bytes");
     }
 
     #[test]

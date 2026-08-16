@@ -7,9 +7,8 @@ use crate::exit::Code;
 use crate::paths;
 use crate::repo::hooks;
 use crate::repo::{Repo, index, recipients};
+use crate::size::{self, LOUD_ENOUGH_TO_MENTION};
 use crate::vault::format::Vault;
-
-const LOUD_ENOUGH_TO_MENTION: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Level {
@@ -95,9 +94,9 @@ fn check_files(repo: &Repo, report: &mut Report) {
 
                 if bytes.len() > LOUD_ENOUGH_TO_MENTION {
                     report.warn(format!(
-                        "{} is {} KiB, and it is sealed again on every git command. Large files belong outside the vault",
+                        "{} is {}, and it is sealed again on every git command. Large files belong outside the vault",
                         paths::DATA,
-                        bytes.len() / 1024
+                        size::human(bytes.len())
                     ));
                 }
             }
@@ -219,7 +218,16 @@ fn check_index(repo: &Repo, report: &mut Report) -> Result<()> {
             paths::DATA,
             paths::DATA
         )),
-        None => report.problem(format!("{} is not tracked by git", paths::DATA)),
+        None if index::in_head(repo.worktree(), paths::DATA)? => report.problem(format!(
+            "{} is in the last commit but no longer in the index, so committing now would delete it. Run `git checkout -- {}`",
+            paths::DATA,
+            paths::DATA
+        )),
+        None => report.warn(format!(
+            "{} is not committed yet. Run `git add {}` and commit",
+            paths::DATA,
+            paths::VAULT_DIR
+        )),
     }
 
     Ok(())
@@ -279,13 +287,7 @@ fn check_declarations(repo: &Repo, report: &mut Report) -> Result<()> {
         }
     }
 
-    let sealed: Vec<String> = repo
-        .secrets()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|secret| secret.path)
-        .collect();
-    let leaked = index::tracked(worktree, &sealed)?;
+    let leaked = repo.tracked_secrets()?;
 
     if leaked.is_empty() {
         report.ok("no sealed path is tracked in plaintext");

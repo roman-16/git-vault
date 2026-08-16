@@ -7,6 +7,8 @@ use crate::exit::Code;
 use crate::paths;
 use crate::repo::session::Empty;
 use crate::repo::{Repo, index};
+use crate::size;
+use crate::vault::format::Vault;
 use crate::vault::seal::{Kind, Secret};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -44,20 +46,39 @@ pub fn ls() -> Result<Code> {
     for secret in &secrets {
         println!(
             "{:>9}  {}  {}",
-            secret.content.len(),
+            size::human(secret.content.len()),
             kind_of(secret),
             secret.path
         );
     }
+
+    let total: usize = secrets.iter().fold(0_usize, |running, secret| {
+        running.saturating_add(secret.content.len())
+    });
+
     println!();
     println!(
-        "{} secret{} in {}",
+        "{} secret{}, {} in total.",
         secrets.len(),
         if secrets.len() == 1 { "" } else { "s" },
-        paths::DATA
+        size::human(total)
     );
 
+    match sealed_entries(&repo) {
+        Some(entries) if entries != secrets.len() => println!(
+            "{} still holds {entries}. The next git command seals what is listed above.",
+            paths::DATA
+        ),
+        _agreed => println!("That is what {} holds.", paths::DATA),
+    }
+
     Ok(Code::Ok)
+}
+
+fn sealed_entries(repo: &Repo) -> Option<usize> {
+    let sealed = repo.read_data().ok()?;
+
+    Vault::decode(&sealed).ok().map(|vault| vault.entries.len())
 }
 
 pub fn status() -> Result<Code> {

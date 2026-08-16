@@ -6,5 +6,7 @@ Sealing secrets/**
   untracked secrets/prod.env, so its plaintext stops being committed
   its earlier contents are still in this repository's history
 
+1 secret, 4 B in total.
+
 Commit the declarations along with the vault:
   git add .gitattributes .gitignore .vault

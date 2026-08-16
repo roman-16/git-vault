@@ -50,7 +50,24 @@ pub fn run() -> Result<Code> {
             purge,
             yes,
         } => cmd::uninstall(dry_run, purge, yes),
-        Command::Unlock { key_file } => cmd::unlock(key_file.as_deref()),
+        Command::Unlock { key_file, identity } => {
+            cmd::unlock(key_file.as_deref(), identity.as_deref())
+        }
+        Command::Unseal {
+            source,
+            into,
+            entries,
+            mode,
+            verbose,
+        } => cmd::unseal(
+            &source,
+            &cmd::Destination {
+                directory: &into,
+                entries: &entries,
+                mode: mode.as_deref(),
+                verbose,
+            },
+        ),
         Command::Update {
             version,
             check,
@@ -77,14 +94,54 @@ enum Command {
     #[command(about = "Generate a vault key, wire this clone, and create the vault files")]
     Init,
 
-    #[command(about = "Materialise the sealed secrets on this machine")]
+    #[command(
+        about = "Materialise the sealed secrets on this machine",
+        long_about = "Materialise the sealed secrets on this machine.\n\nThis is `unseal` into your worktree, plus wiring this clone and caching the vault key, so plain git keeps the vault in step from then on."
+    )]
     Unlock {
         #[arg(
             long,
             value_name = "FILE",
-            help = "Read the vault key from a file instead of unwrapping it with an age identity"
+            help = "Read the vault key from a file instead of unwrapping it with an identity"
         )]
         key_file: Option<PathBuf>,
+
+        #[arg(
+            long,
+            value_name = "FILE",
+            conflicts_with = "key_file",
+            help = "The age or SSH private key that opens the vault"
+        )]
+        identity: Option<PathBuf>,
+    },
+
+    #[command(
+        about = "Write a vault's contents into a directory, with no repository and no git",
+        long_about = "Write a vault's contents into a directory, with no repository and no git.\n\nThe data half of `unlock`, for a machine that only receives files: a server unsealing at activation, or a CI job with no checkout. It reports a count rather than names, because the names are what a vault hides; pass --verbose for them."
+    )]
+    Unseal {
+        #[command(flatten)]
+        source: cmd::Source,
+
+        #[arg(long, value_name = "DIR", help = "Where to write the secrets")]
+        into: PathBuf,
+
+        #[arg(
+            long,
+            value_name = "GLOB",
+            help = "Write only the secrets whose path matches"
+        )]
+        entries: Vec<String>,
+
+        #[arg(
+            long,
+            value_name = "OCTAL",
+            help = "Give every written file this mode, such as 0400"
+        )]
+        mode: Option<String>,
+
+        #[arg(long, help = "Name each secret as it is written")]
+        verbose: bool,
     },
 
     #[command(about = "Remove the plaintext secrets and the local vault key")]

@@ -5,6 +5,7 @@ mod filter;
 mod paths;
 mod repo;
 mod selfmanage;
+mod size;
 mod vault;
 
 use std::env;

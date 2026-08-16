@@ -114,6 +114,13 @@ impl Patterns {
     }
 }
 
+pub fn matches_any(globs: &[String], path: &str) -> bool {
+    globs.iter().any(|glob| {
+        gix_glob::parse(glob.as_bytes())
+            .is_some_and(|pattern| matches_path_or_parent(&pattern, path))
+    })
+}
+
 fn is_inside(candidate: &str, other: &str) -> bool {
     candidate != other
         && candidate
@@ -245,6 +252,19 @@ mod tests {
     #[test]
     fn an_unanchored_pattern_has_to_walk_everything() {
         assert_eq!(patterns("*.key vault\n").roots(), [String::new()]);
+    }
+
+    #[test]
+    fn a_glob_selects_whole_directories_as_well_as_single_files() {
+        let globs = ["hosts/homelab/**".to_owned(), "shared/atuin.env".to_owned()];
+
+        assert!(super::matches_any(
+            &globs,
+            "hosts/homelab/trader/secrets.json"
+        ));
+        assert!(super::matches_any(&globs, "shared/atuin.env"));
+        assert!(!super::matches_any(&globs, "hosts/laptop/secrets.json"));
+        assert!(!super::matches_any(&[], "anything"));
     }
 
     #[test]

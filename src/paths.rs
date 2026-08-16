@@ -8,6 +8,8 @@ pub const IGNORE: &str = ".gitignore";
 
 pub const KEYS: &str = ".vault/keys";
 
+pub const KEYS_FILE: &str = "keys";
+
 pub const RECIPIENTS: &str = ".vault/recipients";
 
 pub const VAULT_DIR: &str = ".vault";

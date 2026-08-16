@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::io::Write as _;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Context as _, Result, bail};
 
@@ -163,8 +163,37 @@ fn read_secret(path: &Path, rel: String) -> Result<Secret> {
     })
 }
 
+fn destination(root: &Path, rel: &str) -> Result<PathBuf> {
+    let relative = Path::new(rel);
+
+    if relative
+        .components()
+        .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        bail!("`{rel}` is not a path inside the target directory, so it will not be written");
+    }
+
+    let mut walked = root.to_path_buf();
+    let mut components = relative.components().peekable();
+
+    while let Some(component) = components.next() {
+        walked.push(component);
+
+        if components.peek().is_some()
+            && fs::symlink_metadata(&walked).is_ok_and(|found| found.is_symlink())
+        {
+            bail!(
+                "`{rel}` would be written through the symlink `{}`, which could put it outside the target directory",
+                walked.display()
+            );
+        }
+    }
+
+    Ok(walked)
+}
+
 fn write_secret(worktree: &Path, secret: &Secret) -> Result<bool> {
-    let path = worktree.join(&secret.path);
+    let path = destination(worktree, &secret.path)?;
 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -303,7 +332,7 @@ fn symlink(target: &str, path: &Path) -> Result<()> {
 mod tests {
     use tempfile::TempDir;
 
-    use super::{apply, collect, remove_all};
+    use super::{apply, apply_only, collect, remove_all};
     use crate::repo::patterns::Patterns;
     use crate::vault::seal::{Kind, Secret};
 
@@ -423,6 +452,31 @@ mod tests {
 
         let collected = collect(dir.path(), &patterns).unwrap();
         assert_eq!(collected, [secrets[1].clone(), secrets[0].clone()]);
+    }
+
+    #[test]
+    fn a_path_that_climbs_out_of_the_directory_is_refused() {
+        let dir = worktree();
+
+        let error = apply_only(dir.path(), &[secret("../escaped.env", b"owned")]).unwrap_err();
+
+        assert!(error.to_string().contains("not a path inside"), "{error}");
+        assert!(!dir.path().parent().unwrap().join("escaped.env").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_secret_is_not_written_through_a_symlink() {
+        let dir = worktree();
+        let elsewhere = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("secrets")).unwrap();
+        std::os::unix::fs::symlink(elsewhere.path(), dir.path().join("secrets/out")).unwrap();
+
+        let error =
+            apply_only(dir.path(), &[secret("secrets/out/owned.env", b"owned")]).unwrap_err();
+
+        assert!(error.to_string().contains("through the symlink"), "{error}");
+        assert!(!elsewhere.path().join("owned.env").exists());
     }
 
     #[test]

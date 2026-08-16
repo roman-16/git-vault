@@ -7,14 +7,15 @@ use crate::exit::Code;
 use crate::paths;
 use crate::repo::hooks::{self, Installed};
 use crate::repo::{Repo, wiring};
+use crate::vault::identity::Identity;
 use crate::vault::keys::{self, VaultKey};
 
-pub fn unlock(key_file: Option<&Path>) -> Result<Code> {
+pub fn unlock(key_file: Option<&Path>, identity: Option<&Path>) -> Result<Code> {
     let repo = Repo::discover()?;
     let worktree = repo.worktree().to_path_buf();
     let sealed = repo.read_data()?;
 
-    let key = load_key(&repo, key_file)?;
+    let key = load_key(&repo, key_file, identity)?;
 
     let watcher = wiring::configure(&worktree)?;
     let hook = hooks::install_pre_commit(repo.common_dir())?;
@@ -45,7 +46,7 @@ pub fn unlock(key_file: Option<&Path>) -> Result<Code> {
     Ok(Code::Ok)
 }
 
-fn load_key(repo: &Repo, key_file: Option<&Path>) -> Result<VaultKey> {
+fn load_key(repo: &Repo, key_file: Option<&Path>, identity: Option<&Path>) -> Result<VaultKey> {
     if let Some(path) = key_file {
         let bytes = fs::read(path).with_context(|| format!("cannot read `{}`", path.display()))?;
         return VaultKey::try_from_slice(&bytes)
@@ -60,14 +61,11 @@ fn load_key(repo: &Repo, key_file: Option<&Path>) -> Result<VaultKey> {
         )
     })?;
 
-    let identity_path = keys::identity_path()?;
-    let identity = keys::load_or_create_identity(&identity_path)?;
+    let identity = match identity {
+        Some(path) => Identity::load(path)?,
+        None => Identity::load_or_create(&keys::identity_path()?)?,
+    };
 
-    keys::unwrap(&envelope, &identity).map_err(|error| {
-        anyhow::anyhow!(
-            "{error}\n\nYour public key is:\n  {}\n\nAsk somebody with access to run:\n  git vault share {}",
-            identity.to_public(),
-            identity.to_public()
-        )
-    })
+    keys::unwrap(&envelope, &identity)
+        .map_err(|error| anyhow::anyhow!("{error}\n\n{}", identity.how_to_publish()))
 }

@@ -45,7 +45,13 @@ $ git vault share ~/keys/alice.pub --label alice@work
 $ git vault share "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI..." --label bob@laptop
 ```
 
-`ssh-ed25519` and `ssh-rsa` are supported. Note that age cannot use `ssh-agent`, so a passphrase-protected SSH key is typed in once per `git vault unlock` on that machine, not once per git command.
+`ssh-ed25519` and `ssh-rsa` are supported, as recipients and as identities:
+
+```console
+$ git vault unlock --identity ~/.ssh/id_ed25519
+```
+
+Two limits worth knowing. age cannot use `ssh-agent` and git-vault does not prompt, so a **passphrase-protected SSH key is refused** with a message saying so; use a key without one, or an age identity. And an SSH private key does not carry its public key, so git-vault reads the `.pub` file beside it to tell you what to ask access for. If that file is missing it says to run `ssh-keygen -y -f <key>`.
 
 Nothing but `git vault update` touches the network, so this works the same on GitHub, GitLab, Gitea or a bare repository on a NAS.
 
@@ -112,6 +118,14 @@ Put that file in your CI secret store, write it out at the start of a job, and u
     git vault unlock --key-file /tmp/vault.key
     git vault doctor
 ```
+
+Somewhere without a repository, or without git at all, `unseal` takes the same key:
+
+```bash
+git vault unseal --data .vault/data --key-file /tmp/vault.key --into ./secrets
+```
+
+→ [Deploying secrets](deploying.md)
 
 Anything holding that file can read every secret in the vault, including its whole history. Treat it as the credential it is, and rotate after anybody with access to the runner leaves.
 

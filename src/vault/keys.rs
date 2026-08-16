@@ -3,10 +3,10 @@ use std::fs;
 use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 
-use age::x25519::Identity;
 use anyhow::{Context as _, Result, bail};
 use secrecy::{ExposeSecret as _, SecretBox};
 
+use crate::vault::identity::Identity;
 use crate::vault::recipient::Recipient;
 
 pub const KEY_LEN: usize = 32;
@@ -101,40 +101,6 @@ pub fn identity_path() -> Result<PathBuf> {
     Ok(base.join("git-vault/identity"))
 }
 
-pub fn load_or_create_identity(path: &Path) -> Result<Identity> {
-    if path.exists() {
-        return load_identity(path);
-    }
-
-    let parent = path
-        .parent()
-        .with_context(|| format!("`{}` has no parent directory", path.display()))?;
-    fs::create_dir_all(parent).with_context(|| format!("cannot create `{}`", parent.display()))?;
-
-    let identity = Identity::generate();
-    let contents = format!(
-        "# git-vault identity. Keep it: without it the vault cannot be opened.\n\
-         # public key: {}\n{}\n",
-        identity.to_public(),
-        identity.to_string().expose_secret(),
-    );
-    write_private(path, contents.as_bytes())?;
-
-    Ok(identity)
-}
-
-pub fn load_identity(path: &Path) -> Result<Identity> {
-    let contents =
-        fs::read_to_string(path).with_context(|| format!("cannot read `{}`", path.display()))?;
-
-    contents
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .find_map(|line| line.parse::<Identity>().ok())
-        .with_context(|| format!("`{}` holds no age identity", path.display()))
-}
-
 pub fn wrap(key: &VaultKey, recipients: &[Recipient]) -> Result<String> {
     if recipients.is_empty() {
         bail!("a vault needs at least one recipient");
@@ -177,9 +143,8 @@ pub fn unwrap(envelope: &[u8], identity: &Identity) -> Result<VaultKey> {
     let decryptor = age::Decryptor::new_buffered(armor)
         .map_err(|error| anyhow::anyhow!("`.vault.keys` is not a usable age file: {error}"))?;
 
-    let identity: &dyn age::Identity = identity;
     let mut reader = decryptor
-        .decrypt(std::iter::once(identity))
+        .decrypt(std::iter::once(identity.as_age()))
         .map_err(|error| {
             anyhow::anyhow!("this identity cannot open the vault: {error}. Ask someone with access to run `git vault share`")
         })?;
@@ -193,7 +158,7 @@ pub fn unwrap(envelope: &[u8], identity: &Identity) -> Result<VaultKey> {
 }
 
 #[cfg(unix)]
-fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
+pub fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
     use std::os::unix::fs::OpenOptionsExt as _;
 
     let mut file = fs::OpenOptions::new()
@@ -208,7 +173,7 @@ fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
 }
 
 #[cfg(windows)]
-fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
+pub fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
     fs::write(path, bytes).with_context(|| format!("cannot write `{}`", path.display()))?;
 
     let user = std::env::var("USERNAME")
@@ -236,7 +201,8 @@ fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
 mod tests {
     use tempfile::TempDir;
 
-    use super::{VaultKey, load_or_create_identity, unwrap, wrap};
+    use super::{VaultKey, unwrap, wrap};
+    use crate::vault::identity::Identity;
     use crate::vault::recipient::Recipient;
 
     #[test]
@@ -266,10 +232,10 @@ mod tests {
     #[test]
     fn a_wrapped_key_comes_back_unchanged() {
         let dir = TempDir::new().unwrap();
-        let identity = load_or_create_identity(&dir.path().join("identity")).unwrap();
+        let identity = Identity::load_or_create(&dir.path().join("identity")).unwrap();
         let key = VaultKey::generate().unwrap();
 
-        let mine = Recipient::new(&identity.to_public().to_string(), None).unwrap();
+        let mine = Recipient::new(&identity.public().unwrap(), None).unwrap();
         let envelope = wrap(&key, &[mine]).unwrap();
         let recovered = unwrap(envelope.as_bytes(), &identity).unwrap();
 
@@ -280,8 +246,8 @@ mod tests {
     #[test]
     fn an_envelope_has_the_same_bytes_on_every_platform() {
         let dir = TempDir::new().unwrap();
-        let identity = load_or_create_identity(&dir.path().join("identity")).unwrap();
-        let mine = Recipient::new(&identity.to_public().to_string(), None).unwrap();
+        let identity = Identity::load_or_create(&dir.path().join("identity")).unwrap();
+        let mine = Recipient::new(&identity.public().unwrap(), None).unwrap();
 
         let envelope = wrap(&VaultKey::generate().unwrap(), &[mine]).unwrap();
 
@@ -291,9 +257,9 @@ mod tests {
     #[test]
     fn a_foreign_identity_cannot_open_the_vault() {
         let dir = TempDir::new().unwrap();
-        let mine = load_or_create_identity(&dir.path().join("mine")).unwrap();
-        let theirs = load_or_create_identity(&dir.path().join("theirs")).unwrap();
-        let owner = Recipient::new(&mine.to_public().to_string(), None).unwrap();
+        let mine = Identity::load_or_create(&dir.path().join("mine")).unwrap();
+        let theirs = Identity::load_or_create(&dir.path().join("theirs")).unwrap();
+        let owner = Recipient::new(&mine.public().unwrap(), None).unwrap();
         let envelope = wrap(&VaultKey::generate().unwrap(), &[owner]).unwrap();
 
         let error = unwrap(envelope.as_bytes(), &theirs).unwrap_err();
@@ -301,20 +267,6 @@ mod tests {
         assert!(
             error.to_string().contains("cannot open the vault"),
             "{error}"
-        );
-    }
-
-    #[test]
-    fn an_identity_is_created_once_and_then_reused() {
-        let dir = TempDir::new().unwrap();
-        let path = dir.path().join("identity");
-
-        let first = load_or_create_identity(&path).unwrap();
-        let second = load_or_create_identity(&path).unwrap();
-
-        assert_eq!(
-            first.to_public().to_string(),
-            second.to_public().to_string()
         );
     }
 }

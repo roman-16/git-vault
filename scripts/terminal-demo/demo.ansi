@@ -20,7 +20,8 @@ README.md
 src/main.rs
 
 [38;2;240;60;46m$[0m git vault ls
-       20  file  secrets/deploy.token
-       55  file  secrets/prod.env
+     20 B  file  secrets/deploy.token
+     55 B  file  secrets/prod.env
 
-2 secrets in .vault/data
+2 secrets, 75 B in total.
+That is what .vault/data holds.

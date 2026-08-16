@@ -86,7 +86,7 @@ fn revoking_replaces_the_key_and_seals_everything_anew() {
     assert!(output.contains("can no longer open the vault"), "{output}");
     assert!(output.contains("still read every commit"), "{output}");
     assert_ne!(source.read(DATA), before, "a new key means new bytes");
-    assert_eq!(source.vault(&["ls"]).ok().lines().count(), 3);
+    assert!(source.vault(&["ls"]).ok().contains("secrets/prod.env"));
     assert_eq!(source.read("secrets/prod.env"), b"A=1\n");
 }
 

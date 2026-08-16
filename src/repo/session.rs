@@ -5,7 +5,7 @@ use anyhow::{Context as _, Result, bail};
 
 use crate::paths;
 use crate::repo::patterns::Patterns;
-use crate::repo::{Repo, worktree};
+use crate::repo::{Repo, index, worktree};
 use crate::vault::format::Vault;
 use crate::vault::keys::VaultKey;
 use crate::vault::seal::Secret;
@@ -46,6 +46,15 @@ impl Repo {
 
     pub fn secrets(&self) -> Result<Vec<Secret>> {
         worktree::collect(self.worktree(), &self.patterns()?)
+    }
+
+    pub fn tracked_secrets(&self) -> Result<Vec<String>> {
+        let patterns = self.patterns()?;
+
+        Ok(index::tracked(self.worktree(), &patterns.declared())?
+            .into_iter()
+            .filter(|path| patterns.is_secret(path))
+            .collect())
     }
 
     pub fn read_data(&self) -> Result<Vec<u8>> {

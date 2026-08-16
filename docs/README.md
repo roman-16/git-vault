@@ -8,6 +8,7 @@
 | [Getting started](getting-started.md) | First vault, second machine, day to day |
 | [Declaring secrets](declaring-secrets.md) | Patterns, the two declaration files, why anchored patterns are faster |
 | [Keys and access](keys-and-access.md) | Recipients, sharing, revoking, rotating, CI |
+| [Deploying secrets](deploying.md) | Opening a vault with no repository: CI, servers, NixOS |
 
 ## Reference
 

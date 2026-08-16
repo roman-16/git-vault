@@ -1,5 +1,6 @@
+use std::io::Write as _;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use anyhow::{Context as _, Result, bail};
 
@@ -18,21 +19,15 @@ pub fn staged_blob(worktree: &Path, rel: &str) -> Result<Option<Vec<u8>>> {
     Ok(None)
 }
 
-pub fn staged_for_commit(worktree: &Path) -> Result<Vec<String>> {
+pub fn in_head(worktree: &Path, rel: &str) -> Result<bool> {
+    let spec = format!("HEAD:{rel}");
     let output = Command::new("git")
         .current_dir(worktree)
-        .args(["diff", "--cached", "--name-only", "--no-renames"])
+        .args(["cat-file", "-e", &spec])
         .output()
-        .context("cannot run git to list what is staged")?;
+        .context("cannot run git to look inside the last commit")?;
 
-    if !output.status.success() {
-        bail!("`git diff --cached` failed");
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(str::to_owned)
-        .collect())
+    Ok(output.status.success())
 }
 
 pub fn tracked(worktree: &Path, paths: &[String]) -> Result<Vec<String>> {
@@ -60,22 +55,42 @@ pub fn tracked(worktree: &Path, paths: &[String]) -> Result<Vec<String>> {
         .collect())
 }
 
-pub fn untrack(worktree: &Path, rel: &str) -> Result<Vec<String>> {
-    let before = tracked(worktree, &[rel.to_owned()])?;
-
-    for path in &before {
-        let status = Command::new("git")
-            .current_dir(worktree)
-            .args(["update-index", "--force-remove", "--", path])
-            .status()
-            .context("cannot run git to untrack a path")?;
-
-        if !status.success() {
-            bail!("`git update-index --force-remove -- {path}` failed");
-        }
+pub fn untrack(worktree: &Path, paths: &[String]) -> Result<()> {
+    if paths.is_empty() {
+        return Ok(());
     }
 
-    Ok(before)
+    let mut child = Command::new("git")
+        .current_dir(worktree)
+        .args(["update-index", "-z", "--force-remove", "--stdin"])
+        .stdin(Stdio::piped())
+        .spawn()
+        .context("cannot run git to untrack paths")?;
+
+    let mut input = child
+        .stdin
+        .take()
+        .context("git accepted no list of paths to untrack")?;
+    for path in paths {
+        input
+            .write_all(path.as_bytes())
+            .and_then(|()| input.write_all(b"\0"))
+            .context("cannot hand git the paths to untrack")?;
+    }
+    drop(input);
+
+    let status = child
+        .wait()
+        .context("cannot wait for git to untrack paths")?;
+
+    if !status.success() {
+        bail!(
+            "`git update-index --force-remove` failed for {}",
+            paths.join(" ")
+        );
+    }
+
+    Ok(())
 }
 
 pub fn config(worktree: &Path, key: &str) -> Result<Option<String>> {
